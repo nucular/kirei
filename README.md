@@ -19,11 +19,11 @@ Dependencies:
 - [GNU make](https://www.gnu.org/software/make/)
   ([Windows build](http://www.equation.com/servlet/equation.cmd?fa=make))
 - A supported SVG rasterizer:
-  - [Inkscape](https://inkscape.org/en/download/)
   - [ImageMagick](https://www.imagemagick.org/script/binary-releases.php)
-  (much faster than Inkscape)
+  (recommended)
   - `rsvg-convert` from [libRSVG](https://wiki.gnome.org/action/show/Projects/LibRsvg)
   ([Windows build](http://opensourcepack.blogspot.com/2012/06/rsvg-convert-svg-image-conversion-tool.html))
+  - [Inkscape](https://inkscape.org/en/download/) (unreliable and slow)
 
 
 - Make sure `make` and `python` are in your `PATH`.
