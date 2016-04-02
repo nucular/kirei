@@ -1,0 +1,6 @@
+__pycache__
+make.exe
+Makefile
+*.osk
+build/*
+!build/.gitkeep
