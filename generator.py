@@ -266,7 +266,8 @@ class Generator(object):
 
     for dirname, subdirs, subfiles in os.walk(self.sourceDir):
       for inputFilename in subfiles:
-        if inputFilename.startswith("_"): continue
+        if inputFilename.startswith("_") \
+          or any([i.startswith("_") for i in dirname.split(os.path.sep)]): continue
         _, extension = os.path.splitext(inputFilename)
         if extension != ".svg": continue
         inputFilepath = os.path.join(dirname, inputFilename)
@@ -283,16 +284,22 @@ class Generator(object):
     self.emitTargetHead("all", deps=allDeps, phony=True)
 
     self.emitTargetHead("clean", phony=True)
-    self.emitDeleteCommand(os.path.join(self.buildDir, "*.png"))
-    self.emitDeleteCommand(os.path.join(self.buildDir, "skin.ini"))
+    for filename in allDeps:
+      self.emitDeleteCommand(filename)
     self.emitDeleteCommand("preview.png")
+    self.emitDeleteCommand("Kirei.osk")
 
     self.emitSVGTarget(
       os.path.join(self.sourceDir, "_preview.svg"),
       outputFilepath="preview.png", scalex2=False
     )
 
-    self.emitTargetHead("release", deps=["all", "preview.png"], phony=True)
+    self.emitTargetHead("Kirei.osk", deps=["all"])
+    self.emitCommand("{0} -m zipfile -c Kirei.osk {1}".format(
+      shellquote(sys.executable), " ".join([shellquote(i) for i in allDeps])
+    ))
+
+    self.emitTargetHead("release", deps=["Kirei.osk", "preview.png"], phony=True)
 
 
 if __name__ == "__main__":
