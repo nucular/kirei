@@ -188,64 +188,50 @@ class Generator(object):
       print("No rasterizer found.", file=self.log)
       sys.exit(1)
 
-  def emitTargetHead(self, name, phony=False, deps=[]):
-    """Emits the head of a target, including PHONY declaration and dependencies."""
+  def emitTargetHead(self, name, phony=False, prereqs=[]):
+    """Emits the head of a target, including PHONY declaration and prerequisites."""
     print("Writing target: {0}".format(name), file=self.log)
     targetname = targetquote(name)
-    targetdeps = [targetquote(i) for i in deps]
+    targetprereqs = [targetquote(i) for i in prereqs]
     if phony:
       self.output.write(".PHONY: {0}\n".format(targetname))
-    self.output.write("{0}: {1}\n".format(targetname, " ".join(targetdeps)))
+    self.output.write("{0}: {1}\n".format(targetname, " ".join(targetprereqs)))
     return name
 
   def emitCommand(self, command):
     """Emits a command inside a target."""
     self.output.write("\t{0}\n".format(command))
 
-  def collectSVGDeps(self, inputFilepath):
+  def collectSVGPrereqs(self, inputFilepath):
     """Parses an SVG file and returns the paths to all embedded images."""
     if inputFilepath in self.depCache:
       return self.depCache[inputFilepath]
 
-    print("Collecting dependencies for {0}".format(inputFilepath), file=self.log)
+    print("Collecting prerequisites for {0}".format(inputFilepath), file=self.log)
     inputFiledir, _ = os.path.split(inputFilepath)
-    deps = [inputFilepath]
+    prereqs = [inputFilepath]
     tree = ET.parse(inputFilepath)
     root = tree.getroot()
 
     for image in root.iter(SCHEMA_SVG + "image"):
       depFilename = image.get(SCHEMA_XLINK + "href")
       depFilepath = os.path.normpath(os.path.join(inputFiledir, depFilename))
-      deps.append(depFilepath)
+      prereqs.append(depFilepath)
       _, extension = os.path.splitext(depFilename)
       if extension == ".svg":
-        deps += self.collectSVGDeps(depFilepath)
+        prereqs += self.collectSVGPrereqs(depFilepath)
 
-    self.depCache[inputFilepath] = deps
-    return deps
+    self.depCache[inputFilepath] = prereqs
+    return prereqs
 
-  def emitSVGTarget(self, inputFilepath, outputFilepath=None, scalex2=True):
+  def emitSVGTarget(self, inputFilepath, outputFilepath, scale=1):
     """Emits a target that rasterizes an SVG file."""
-    inputFiledir, inputFilename = os.path.split(inputFilepath)
-    inputFilenameRoot, inputFilenameExtension = os.path.splitext(inputFilename)
+    prereqs = self.collectSVGPrereqs(inputFilepath)
 
-    if not outputFilepath:
-      outputFilename = inputFilenameRoot + ".png"
-      outputFilepath = os.path.join(self.buildDir, outputFilename)
-      outputFilepath2x = os.path.join(self.buildDir, inputFilenameRoot + "@2x.png")
-    else:
-      outputFilepathRoot, outputFilepathExtension = os.path.splitext(outputFilepath)
-      outputFilepath2x = outputFilepathRoot + "@2x" + outputFilepathExtension
-    deps = self.collectSVGDeps(inputFilepath)
-
-    self.emitTargetHead(outputFilepath, deps=[inputFilepath] + deps)
+    self.emitTargetHead(outputFilepath, prereqs=[inputFilepath] + prereqs)
     self.emitCommand(self.rasterizer.rasterizeCommand(
-      inputFilepath, outputFilepath, 1
+      inputFilepath, outputFilepath, scale
     ))
-    if scalex2:
-      self.emitCommand(self.rasterizer.rasterizeCommand(
-        inputFilepath, outputFilepath2x, 2
-      ))
 
     return outputFilepath
 
@@ -269,17 +255,20 @@ class Generator(object):
 
   def generate(self):
     """Walks the source directory and emits all found targets, including an 'all' and 'clean' target."""
-    allDeps = []
+    allPrereqs = []
 
     for dirname, subdirs, subfiles in os.walk(self.sourceDir):
       for inputFilename in subfiles:
         if inputFilename.startswith("_") \
           or any([i.startswith("_") for i in dirname.split(os.path.sep)]): continue
-        _, extension = os.path.splitext(inputFilename)
+        inputFilenameRoot, extension = os.path.splitext(inputFilename)
         if extension != ".svg": continue
         inputFilepath = os.path.join(dirname, inputFilename)
-        allDeps.append(
-          self.emitSVGTarget(inputFilepath, scalex2=True)
+        outputFilename = inputFilenameRoot + ".png"
+        outputFilepath = os.path.join(self.buildDir, outputFilename)
+        outputFilepath2x = os.path.join(self.buildDir, inputFilenameRoot + "@2x.png")
+        allPrereqs.append(
+          self.emitSVGTarget(inputFilepath, outputFilepath)
         )
 
     # build/skin.ini:
@@ -287,30 +276,27 @@ class Generator(object):
     toFilepath = os.path.join(self.buildDir, "skin.ini")
     self.emitTargetHead(toFilepath)
     self.emitCopyCommand(fromFilepath, toFilepath)
-    allDeps.append(toFilepath)
+    allPrereqs.append(toFilepath)
     # all:
-    self.emitTargetHead("all", deps=allDeps, phony=True)
-    # clean:
-    self.emitTargetHead("clean", phony=True)
-    for filename in allDeps:
-      self.emitDeleteCommand(filename)
-    self.emitDeleteCommand("preview.png")
-    self.emitDeleteCommand("Kirei.osk")
+    self.emitTargetHead("all", prereqs=allPrereqs, phony=True)
     # preview.png:
-    self.emitSVGTarget(
-      os.path.join(self.sourceDir, "_preview.svg"),
-      outputFilepath="preview.png", scalex2=False
-    )
+    self.emitSVGTarget(os.path.join(self.sourceDir, "_preview.svg"), "preview.png")
     # Kirei-MAJOR.MINOR.PATCH.osk:
     packagename = "Kirei-{0}.osk".format(self.skinVersion)
-    self.emitTargetHead(packagename, deps=["all"])
-    self.emitCommand("{0} -m zipfile -c Kirei.osk {1}".format(
-      shellquote(sys.executable), " ".join([shellquote(i) for i in allDeps])
+    self.emitTargetHead(packagename, prereqs=allPrereqs)
+    self.emitCommand("{0} -m zipfile -c {1} {2}".format(
+      shellquote(sys.executable),
+      shellquote(packagename),
+      " ".join([shellquote(i) for i in allPrereqs])
     ))
     # package:
-    self.emitTargetHead("package", deps=[packagename], phony=True)
-    # release:
-    self.emitTargetHead("release", deps=["package", "preview.png"], phony=True)
+    self.emitTargetHead("package", prereqs=[packagename], phony=True)
+    # clean:
+    self.emitTargetHead("clean", phony=True)
+    for filename in allPrereqs:
+      self.emitDeleteCommand(filename)
+    self.emitDeleteCommand("preview.png")
+    self.emitDeleteCommand(packagename)
 
 
 if __name__ == "__main__":

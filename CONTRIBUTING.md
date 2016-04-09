@@ -50,6 +50,7 @@ and [Semantic Versioning](http://semver.io).
   (i.e. `git flow release start`).
 - Bump the version numbers inside `skin.ini` and do other last-minute changes.
 - Build `Kirei-MAJOR.MINOR.PATCH.osk` as described above.
+- Build a new preview picture with `make preview.png`.
 - Finish the release branch, tag it, merge it back into `develop` and `master`
   and push it (i.e. `git flow release finish --push`).
 - Draft a new release on GitHub using the newly created tag (@ master). Upload
