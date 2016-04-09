@@ -224,14 +224,18 @@ class Generator(object):
     self.depCache[inputFilepath] = prereqs
     return prereqs
 
-  def emitSVGTarget(self, inputFilepath, outputFilepath, scale=1):
+  def emitSVGTarget(self, inputFilepath, outputFilepath, outputFilepath2x=None):
     """Emits a target that rasterizes an SVG file."""
     prereqs = self.collectSVGPrereqs(inputFilepath)
 
     self.emitTargetHead(outputFilepath, prereqs=[inputFilepath] + prereqs)
     self.emitCommand(self.rasterizer.rasterizeCommand(
-      inputFilepath, outputFilepath, scale
+      inputFilepath, outputFilepath, 1
     ))
+    if outputFilepath2x:
+      self.emitCommand(self.rasterizer.rasterizeCommand(
+        inputFilepath, outputFilepath2x, 2
+      ))
 
     return outputFilepath
 
@@ -256,6 +260,7 @@ class Generator(object):
   def generate(self):
     """Walks the source directory and emits all found targets, including an 'all' and 'clean' target."""
     allPrereqs = []
+    allPrereqs2x = []
 
     for dirname, subdirs, subfiles in os.walk(self.sourceDir):
       for inputFilename in subfiles:
@@ -267,9 +272,9 @@ class Generator(object):
         outputFilename = inputFilenameRoot + ".png"
         outputFilepath = os.path.join(self.buildDir, outputFilename)
         outputFilepath2x = os.path.join(self.buildDir, inputFilenameRoot + "@2x.png")
-        allPrereqs.append(
-          self.emitSVGTarget(inputFilepath, outputFilepath)
-        )
+        self.emitSVGTarget(inputFilepath, outputFilepath, outputFilepath2x)
+        allPrereqs.append(outputFilepath)
+        allPrereqs2x.append(outputFilepath2x)
 
     # build/skin.ini:
     fromFilepath = os.path.join(self.sourceDir, "skin.ini")
@@ -293,7 +298,7 @@ class Generator(object):
     self.emitTargetHead("package", prereqs=[packagename], phony=True)
     # clean:
     self.emitTargetHead("clean", phony=True)
-    for filename in allPrereqs:
+    for filename in allPrereqs + allPrereqs2x:
       self.emitDeleteCommand(filename)
     self.emitDeleteCommand("preview.png")
     self.emitDeleteCommand(packagename)
