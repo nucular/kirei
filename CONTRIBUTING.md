@@ -36,10 +36,8 @@ Dependencies:
   - If the script doesn't find your rasterizer, try adding it to your `PATH` too.
   - This should be re-ran after a file has been added or removed from the source
     folder or dependency links between files modified.
-- Run `make all`.
-- Zip up the `build` folder (the files must be at the root) and rename the
-  archive to end in `.osk`.
-  - E.g. `zip -r build kirei.osk`
+- Run `make package`.
+- Double-click the finished OSK file to install the skin.
 
 ## Releasing
 
@@ -51,8 +49,7 @@ and [Semantic Versioning](http://semver.io).
 - Branch out `release-MAJOR.MINOR.PATCH` from `master`
   (i.e. `git flow release start`).
 - Bump the version numbers inside `skin.ini` and do other last-minute changes.
-- Build `kirei-MAJOR.MINOR.PATCH.osk` as described above, but run `make release`
-  instead of `make all`.
+- Build `Kirei-MAJOR.MINOR.PATCH.osk` as described above.
 - Finish the release branch, tag it, merge it back into `develop` and `master`
   and push it (i.e. `git flow release finish --push`).
 - Draft a new release on GitHub using the newly created tag (@ master). Upload

@@ -1,5 +1,6 @@
 import os, sys, re
 import xml.etree.ElementTree as ET
+import configparser
 
 SCHEMA_SVG = "{http://www.w3.org/2000/svg}"
 SCHEMA_XLINK = "{http://www.w3.org/1999/xlink}"
@@ -160,6 +161,11 @@ class Generator(object):
     if self.output == sys.stdout: self.log = sys.stderr
     else: self.log = sys.stdout
 
+    config = configparser.ConfigParser()
+    config.read(os.path.join(self.sourceDir, "skin.ini"))
+    self.skinVersion = config["General"]["Name"].split(" ")[1]
+    print("Skin version: {0}".format(self.skinVersion))
+
     for r in allRasterizers:
       if args.rasterizer != "auto":
         if args.rasterizer == r.NAME:
@@ -190,6 +196,7 @@ class Generator(object):
     if phony:
       self.output.write(".PHONY: {0}\n".format(targetname))
     self.output.write("{0}: {1}\n".format(targetname, " ".join(targetdeps)))
+    return name
 
   def emitCommand(self, command):
     """Emits a command inside a target."""
@@ -254,7 +261,7 @@ class Generator(object):
       ))
 
   def emitDeleteCommand(self, targetFilepath):
-    """Emits a target that deletes a file."""
+    """Emits a command that deletes a file."""
     if LINUX or DARWIN:
       self.emitCommand("rm -rf " + shellquote(targetFilepath))
     elif WINDOWS:
@@ -275,31 +282,35 @@ class Generator(object):
           self.emitSVGTarget(inputFilepath, scalex2=True)
         )
 
+    # build/skin.ini:
     fromFilepath = os.path.join(self.sourceDir, "skin.ini")
     toFilepath = os.path.join(self.buildDir, "skin.ini")
     self.emitTargetHead(toFilepath)
     self.emitCopyCommand(fromFilepath, toFilepath)
     allDeps.append(toFilepath)
-
+    # all:
     self.emitTargetHead("all", deps=allDeps, phony=True)
-
+    # clean:
     self.emitTargetHead("clean", phony=True)
     for filename in allDeps:
       self.emitDeleteCommand(filename)
     self.emitDeleteCommand("preview.png")
     self.emitDeleteCommand("Kirei.osk")
-
+    # preview.png:
     self.emitSVGTarget(
       os.path.join(self.sourceDir, "_preview.svg"),
       outputFilepath="preview.png", scalex2=False
     )
-
-    self.emitTargetHead("Kirei.osk", deps=["all"])
+    # Kirei-MAJOR.MINOR.PATCH.osk:
+    packagename = "Kirei-{0}.osk".format(self.skinVersion)
+    self.emitTargetHead(packagename, deps=["all"])
     self.emitCommand("{0} -m zipfile -c Kirei.osk {1}".format(
       shellquote(sys.executable), " ".join([shellquote(i) for i in allDeps])
     ))
-
-    self.emitTargetHead("release", deps=["Kirei.osk", "preview.png"], phony=True)
+    # package:
+    self.emitTargetHead("package", deps=[packagename], phony=True)
+    # release:
+    self.emitTargetHead("release", deps=["package", "preview.png"], phony=True)
 
 
 if __name__ == "__main__":
