@@ -209,7 +209,7 @@ class Generator(object):
 
     print("Collecting prerequisites for {0}".format(inputFilepath), file=self.log)
     inputFiledir, _ = os.path.split(inputFilepath)
-    prereqs = [inputFilepath]
+    prereqs = []
     tree = ET.parse(inputFilepath)
     root = tree.getroot()
 
